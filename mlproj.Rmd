@@ -1,0 +1,72 @@
+---
+title: "Machine Learning Project"
+output: html_document
+---
+
+This is the R Markdown document for the Machine Learning Project.
+
+**First we get the data, remove both columns that contain NA and the first two columns which are not relevant for prediction**
+```{r, echo = TRUE}
+library(caret)
+set.seed(1234)
+dtrain <- read.csv("pml-training.csv")
+dtest <- read.csv("pml-testing.csv")
+ctrain <- apply(is.na(dtrain), 2, sum) > dim(dtrain)[1]/2
+ctest <- apply(is.na(dtest), 2, sum) > dim(dtest)[1]/2
+cindex <- ctrain | ctest
+cindex[1:2] <- TRUE
+
+dtrain2 <- dtrain[, !cindex]
+dtest2 <- dtest[, !cindex]
+```
+
+**Then we build training and validation sets and get our rf model**
+```{r, echo = TRUE}
+inTrain <- createDataPartition(y = dtrain2$classe, p = 0.7, 
+                               list = FALSE)
+dtrain3 <- dtrain2[inTrain,]
+dvalid <- dtrain2[-inTrain,]
+control1 <- trainControl(method = "cv")
+mf1 <- train(classe ~ ., method = "rf", trControl = control1,
+             data = dtrain3)
+plot(mf1)
+```
+
+**Out-of-sample error, cross validation and prediction**
+
+The expected out of sample error is 1 - accuracy and we can get accuracy from the following result:
+```{r, echo = FALSE}
+mf1
+```
+So we get the expected accuracy of
+```{r, echo = FALSE}
+accE <- mf1$results[match(mf1$bestTune, mf1$results[, 1]),2]
+accE
+```
+and the error rate is
+```{r, echo = FALSE}
+1 - accE
+```
+We get the actual error rate using the validation set
+```{r, echo = TRUE}
+pred1 <- predict(mf1, dvalid)
+accuA <- sum(pred1 == dvalid$classe) / length(dvalid$classe)  
+err1 <- 1 - accuA
+```
+So the out-of-sample error is
+```{r, echo = FALSE}
+err1
+```
+
+
+**Finally we make a prediction on the test set. The correct classe values for the test set are known, so we can compare them with our prediction**
+
+```{r, echo = TRUE}
+answers <- c("B", "A", "B", "A", "A", "E", "D", "B", "A", "A",
+             "B", "C", "B", "A", "E", "E", "A", "B", "B", "B")
+pred2 <- predict(mf1, dtest2)
+table(pred2, answers)
+```
+
+So we make a prediction on the test set with
+`r sum(pred2 == answers) / length(answers) * 100`% accuracy.
